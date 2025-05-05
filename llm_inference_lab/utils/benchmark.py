@@ -19,6 +19,26 @@ from optimum.onnxruntime import ORTModelForSeq2SeqLM
 
 from .models import pegasus_model
 
+def measure_inference_time(model: PegasusForConditionalGeneration
+    | BartForConditionalGeneration, 
+    tokenizer: PegasusTokenizerFast | BartTokenizerFast,
+    inputs: BatchEncoding
+   ) -> float:
+        # Record start time
+        start_time = time.time()
+        
+        # Run inference
+        outputs = model.generate(
+        inputs["input_ids"]
+        )
+
+        _ = tokenizer.batch_decode(outputs,skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        
+        # Record end time and calculate latency
+        end_time = time.time()
+        latency = (end_time - start_time) 
+        return latency
+
 
 def measure_inference_latency(
     model: PegasusForConditionalGeneration
@@ -37,10 +57,7 @@ def measure_inference_latency(
     with torch.inference_mode():
         for _ in range(num_warmups):
             _ = model.generate(
-                inputs.get("input_ids"),
-                num_beams=4,
-                early_stopping=True,
-                max_new_tokens=128,
+                inputs.get("input_ids")
             )
     if use_gpu:
         torch.cuda.synchronize()
@@ -49,10 +66,7 @@ def measure_inference_latency(
         start_time = time.time()
         for _ in range(num_samples):
             _ = model.generate(
-                inputs.get("input_ids"),
-                num_beams=4,
-                early_stopping=True,
-                max_new_tokens=128,
+                inputs.get("input_ids")
             )
             if use_gpu:
                 torch.cuda.synchronize()
@@ -117,7 +131,7 @@ def prepare_seq2seq_inputs(
 ) -> BatchEncoding:
 
     inputs = tokenizer(
-        text, return_tensors="pt", max_length=512, padding=padding, truncation=True
+        text, return_tensors="pt", padding=padding, truncation=True
     )
     if torch.cuda.is_available() and device != "cpu":
         inputs = inputs.to(device)
@@ -149,8 +163,7 @@ def run_seq2seq(
         model = model.to(device)
 
     outputs = model.generate(
-        inputs.get("input_ids"), num_beams=4, early_stopping=True, max_new_tokens=128
-    )
+        inputs.get("input_ids"))
 
     answer = tokenizer.batch_decode(
         outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False
